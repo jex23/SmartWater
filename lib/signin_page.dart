@@ -53,12 +53,7 @@ class _SignInPageState extends State<SignInPage> {
               child: Text('Sign In'),
             ),
             SizedBox(height: 10),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/signup');
-              },
-              child: Text('Don\'t have an account? Sign Up'),
-            ),
+
           ],
         ),
       ),
