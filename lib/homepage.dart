@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:fancy_bottom_navigation_2/fancy_bottom_navigation.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -14,11 +16,18 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _database = FirebaseDatabase.instance.reference().child('Water/Reading');
-  final DatabaseReference _databse2 = FirebaseDatabase.instance.reference().child('Water/Flowrate');
-  final DatabaseReference _databse3 = FirebaseDatabase.instance.reference().child('Water/WaterReading');
-  final String apiUrl = 'https://script.google.com/macros/s/AKfycbzv44RSA-eJGEspgF9g78wSWcJt4Au9b2tsEmg0qf1_Ma67EkKPt6xmN1HzPg6A1lSZbw/exec';
+  final DatabaseReference _database =
+  FirebaseDatabase.instance.reference().child('Water/Reading');
+  final DatabaseReference _databse2 =
+  FirebaseDatabase.instance.reference().child('Water/Flowrate');
+  final DatabaseReference _databse3 =
+  FirebaseDatabase.instance.reference().child('Water/WaterReading');
+  final String apiUrl =
+      'https://script.google.com/macros/s/AKfycbzv44RSA-eJGEspgF9g78wSWcJt4Au9b2tsEmg0qf1_Ma67EkKPt6xmN1HzPg6A1lSZbw/exec';
   List<List<String>> _data = [];
+  List<String> _timestamps = [];
+  List<double> _literReadings = [];
+
   late PageController _pageController;
   int _currentIndex = 0;
 
@@ -27,8 +36,10 @@ class _HomePageState extends State<HomePage> {
 
     if (response.statusCode == 200) {
       setState(() {
-        _data = List<List<String>>.from(json.decode(response.body).map((row) => List<String>.from(row)));
+        _data = List<List<String>>.from(
+            json.decode(response.body).map((row) => List<String>.from(row)));
         _saveDataToLocal();
+        extractChartData(); // Populate _timestamps and _literReadings lists
       });
     } else {
       throw Exception('Failed to load data');
@@ -109,16 +120,56 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
+  Widget bottomTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 16,
+    );
+    Widget text;
+    switch (value.toInt()) {
+      case 2:
+        text = const Text('MAR', style: style);
+        break;
+      case 5:
+        text = const Text('JUN', style: style);
+        break;
+      case 8:
+        text = const Text('SEP', style: style);
+        break;
+      default:
+        text = const Text('', style: style);
+        break;
+    }
 
+    return SideTitleWidget(
+      axisSide: meta.axisSide,
+      child: text,
+    );
+  }
   Future<void> _saveDataToLocal() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setString('data', json.encode(_data));
   }
 
+  void extractChartData() {
+    _timestamps.clear();
+    _literReadings.clear();
+
+    for (int i = 1; i < _data.length; i++) {
+      String timestamp = _data[i][1];
+      double literReading = double.tryParse(_data[i][2]) ?? 0.0;
+
+      _timestamps.add(timestamp);
+      _literReadings.add(literReading);
+    }
+  }
+
   Widget buildHomePage() {
     User? user = _auth.currentUser;
-    String emailPrefix = user?.email?.split('@').first.replaceAll(RegExp(r'[0-9]'), '') ?? '';
-    String capitalizedPrefix = emailPrefix.isNotEmpty ? emailPrefix[0].toUpperCase() + emailPrefix.substring(1) : '';
+    String emailPrefix =
+        user?.email?.split('@').first.replaceAll(RegExp(r'[0-9]'), '') ?? '';
+    String capitalizedPrefix =
+    emailPrefix.isNotEmpty ? emailPrefix[0].toUpperCase() + emailPrefix.substring(1) : '';
 
     return Column(
       children: [
@@ -161,13 +212,19 @@ class _HomePageState extends State<HomePage> {
                   "Cubic Meter: $cubicCompsumption m³",
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                Padding(padding: EdgeInsets.only(top: 10),
-                  child: Text("Liter: $waterConsumption ml",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),),
+                Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Text(
+                    "Liter: $waterConsumption L",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 ),
-                Padding(padding: EdgeInsets.only(top: 10),
-                  child: Text("Flowrte: $flowRate L/min",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),),
+                Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Text(
+                    "Flowrte: $flowRate L/min",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 )
               ],
             ),
@@ -181,7 +238,7 @@ class _HomePageState extends State<HomePage> {
               child: _data.isEmpty
                   ? Center(child: CircularProgressIndicator())
                   : ListView.builder(
-                itemCount: _data.length - 1,
+                itemCount: _data.length - 2,
                 itemBuilder: (context, index) {
                   final reversedIndex = _data.length - index - 2;
                   final rawDate = _data[reversedIndex + 1][1];
@@ -193,8 +250,10 @@ class _HomePageState extends State<HomePage> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Total Consumption: ${_data[reversedIndex + 1][0]} m³'),
-                          Text('Daily Consumption: ${_data[reversedIndex + 1][2]} m³'),
+                          Text(
+                              'Total Consumption: ${_data[reversedIndex + 1][0]} m³'),
+                          Text(
+                              'Daily Consumption: ${_data[reversedIndex + 1][2]} m³'),
                         ],
                       ),
                     ),
@@ -209,14 +268,110 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget buildDataScreen() {
-    return Center(
-      child: Text(
-        'Hello',
-        style: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+    return Scaffold(
+      body:
+      Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              color: Colors.transparent, // Set to transparent to apply gradient directly
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16.0),
+                  gradient: LinearGradient(
+                    colors: [Colors.green, Colors.blue], // Adjust colors as needed
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Water Consumption',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black, // Adjust text color as needed
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Container(
+                        height: 300, // Set the desired height for your chart
+                        child: LineChart(
+                          LineChartData(
+                            // Customize your line chart data here
+                            gridData: FlGridData(show: true,
+                                drawHorizontalLine: true,
+                                drawVerticalLine: true),
+                            titlesData: FlTitlesData(
+                              show: true,
+                              rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 30,
+                                  interval: 1,
+                                  getTitlesWidget: bottomTitleWidgets,
+
+                                ),
+                              ),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  interval: 10,
+                                  //getTitlesWidget: leftTitleWidgets,
+                                  reservedSize: 42,
+                                ),
+                              ),
+
+                            ),
+                            backgroundColor: Colors.transparent,
+                            //minX: 0,
+                            // maxX: 6, // Adjust based on your data
+                            minY: -5,
+                            maxY: 100, // Adjust based on your data
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: List.generate(
+                                  _timestamps.length,
+                                      (index) => FlSpot(index.toDouble(), _literReadings[index]),
+                                ),
+                                isCurved: true,
+                                color: Colors.black,
+                                dotData: FlDotData(show: false),
+                                belowBarData: BarAreaData(
+                                  show: true,
+                                  gradient: LinearGradient(
+                                    colors: [Colors.deepOrange.withOpacity(0.7), Colors.purple],
+                                    stops: [0.0, 0.5],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      )
+      ,
     );
   }
 
@@ -241,30 +396,40 @@ class _HomePageState extends State<HomePage> {
           buildDataScreen(),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.blue, // Set background color
-        selectedItemColor: Colors.white, // Set selected item color
-        currentIndex: _currentIndex,
-        onTap: (index) {
+      bottomNavigationBar: FancyBottomNavigation(
+
+        circleColor: Colors.blue, // Set color for the unselected item circle
+        activeIconColor: Colors.white, // Set color for the selected item icon
+        inactiveIconColor: Colors.blue, // Set color for the unselected item icon
+        textColor: Colors.blue, // Set color for the text
+        barBackgroundColor: Colors.white, // Set color for the bottom bar background
+        tabs: [
+          TabData(
+            iconData: Icons.home,
+            title: "Homepage",
+
+
+          ),
+          TabData(
+            iconData: Icons.data_usage,
+            title: "DataScreen",
+
+
+          ),
+
+        ],
+
+        initialSelection: _currentIndex,
+        onTabChangedListener: (position) {
           setState(() {
-            _currentIndex = index;
+            _currentIndex = position;
             _pageController.animateToPage(
-              index,
+              position,
               duration: Duration(milliseconds: 500),
               curve: Curves.easeInOut,
             );
           });
         },
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Homepage',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.data_usage),
-            label: 'DataScreen',
-          ),
-        ],
       ),
     );
   }
