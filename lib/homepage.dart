@@ -17,11 +17,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database =
-  FirebaseDatabase.instance.reference().child('Water/Reading');
+      FirebaseDatabase.instance.reference().child('Water/Reading');
   final DatabaseReference _databse2 =
-  FirebaseDatabase.instance.reference().child('Water/Flowrate');
+      FirebaseDatabase.instance.reference().child('Water/Flowrate');
   final DatabaseReference _databse3 =
-  FirebaseDatabase.instance.reference().child('Water/WaterReading');
+      FirebaseDatabase.instance.reference().child('Water/WaterReading');
   final String apiUrl =
       'https://script.google.com/macros/s/AKfycbzv44RSA-eJGEspgF9g78wSWcJt4Au9b2tsEmg0qf1_Ma67EkKPt6xmN1HzPg6A1lSZbw/exec';
   List<List<String>> _data = [];
@@ -44,6 +44,8 @@ class _HomePageState extends State<HomePage> {
     } else {
       throw Exception('Failed to load data');
     }
+    // Print the _timestamps list
+    //print(_timestamps);
   }
 
   String formatDateString(String dateString) {
@@ -80,6 +82,8 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _loadDataFromLocal();
     _fetchData();
+    _saveCapitalizedPrefix();
+
     Timer.periodic(Duration(seconds: 30), (Timer t) => _fetchData());
 
     _database.onValue.listen((event) {
@@ -112,33 +116,78 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadDataFromLocal() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String>? timestampsJson = prefs.getStringList('timestamps');
+    final List<String>? literReadingsJson =
+        prefs.getStringList('literReadings');
     final String? dataString = prefs.getString('data');
+
     if (dataString != null) {
       final List<dynamic> jsonData = json.decode(dataString);
       setState(() {
         _data = jsonData.map((row) => List<String>.from(row)).toList();
       });
     }
+
+    if (timestampsJson != null && literReadingsJson != null) {
+      _timestamps = timestampsJson
+          .map((timestamp) => json.decode(timestamp))
+          .toList()
+          .cast<String>();
+      _literReadings = literReadingsJson
+          .map((reading) => json.decode(reading))
+          .toList()
+          .cast<double>();
+    }
   }
+
+  /*Future<void> _loadDataFromLocal() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String>? timestampsJson = prefs.getStringList('timestamps');
+    final List<String>? literReadingsJson = prefs.getStringList('literReadings');
+
+    if (timestampsJson != null && literReadingsJson != null) {
+      _timestamps = timestampsJson.map((timestamp) => json.decode(timestamp)).toList().cast<String>();
+      _literReadings = literReadingsJson.map((reading) => json.decode(reading)).toList().cast<double>();
+    }
+  }*/
+
+  Future<void> _saveCapitalizedPrefix() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final User? user = _auth.currentUser;
+    final String emailPrefix =
+        user?.email?.split('@').first.replaceAll(RegExp(r'[0-9]'), '') ?? '';
+    final String capitalizedPrefix = emailPrefix.isNotEmpty
+        ? emailPrefix[0].toUpperCase() + emailPrefix.substring(1)
+        : '';
+    prefs.setString('capitalizedPrefix', capitalizedPrefix);
+  }
+
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
     const style = TextStyle(
       fontWeight: FontWeight.bold,
-      fontSize: 16,
+      fontSize: 10,
     );
     Widget text;
-    switch (value.toInt()) {
-      case 2:
-        text = const Text('MAR', style: style);
-        break;
-      case 5:
-        text = const Text('JUN', style: style);
-        break;
-      case 8:
-        text = const Text('SEP', style: style);
-        break;
-      default:
+
+    if (_timestamps.isNotEmpty) {
+      final String dateString = _timestamps[value.toInt()];
+      List<String> parts = dateString.split(' ');
+
+      if (parts.length >= 4) {
+        String day = parts[2];
+        String month = parts[1];
+
+        String formattedDate = '$month $day';
+
+        text = RotatedBox(
+          quarterTurns: 3, // Rotate text by 90 degrees (counter-clockwise)
+          child: Text(formattedDate, style: style),
+        );
+      } else {
         text = const Text('', style: style);
-        break;
+      }
+    } else {
+      text = const Text('', style: style);
     }
 
     return SideTitleWidget(
@@ -146,8 +195,21 @@ class _HomePageState extends State<HomePage> {
       child: text,
     );
   }
+
+  /*Future<void> _saveDataToLocal() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setString('data', json.encode(_data));
+  }*/
+
   Future<void> _saveDataToLocal() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String> timestampsJson =
+        _timestamps.map((timestamp) => json.encode(timestamp)).toList();
+    final List<String> literReadingsJson =
+        _literReadings.map((reading) => json.encode(reading)).toList();
+
+    prefs.setStringList('timestamps', timestampsJson);
+    prefs.setStringList('literReadings', literReadingsJson);
     prefs.setString('data', json.encode(_data));
   }
 
@@ -168,8 +230,9 @@ class _HomePageState extends State<HomePage> {
     User? user = _auth.currentUser;
     String emailPrefix =
         user?.email?.split('@').first.replaceAll(RegExp(r'[0-9]'), '') ?? '';
-    String capitalizedPrefix =
-    emailPrefix.isNotEmpty ? emailPrefix[0].toUpperCase() + emailPrefix.substring(1) : '';
+    String capitalizedPrefix = emailPrefix.isNotEmpty
+        ? emailPrefix[0].toUpperCase() + emailPrefix.substring(1)
+        : '';
 
     return Column(
       children: [
@@ -185,7 +248,8 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       'Welcome, $capitalizedPrefix',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     SizedBox(height: 20),
                     ElevatedButton(
@@ -238,28 +302,28 @@ class _HomePageState extends State<HomePage> {
               child: _data.isEmpty
                   ? Center(child: CircularProgressIndicator())
                   : ListView.builder(
-                itemCount: _data.length - 2,
-                itemBuilder: (context, index) {
-                  final reversedIndex = _data.length - index - 2;
-                  final rawDate = _data[reversedIndex + 1][1];
-                  final formattedDate = formatDateString(rawDate);
+                      itemCount: _data.length - 2,
+                      itemBuilder: (context, index) {
+                        final reversedIndex = _data.length - index - 2;
+                        final rawDate = _data[reversedIndex + 1][1];
+                        final formattedDate = formatDateString(rawDate);
 
-                  return Card(
-                    child: ListTile(
-                      title: Text('$formattedDate'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                              'Total Consumption: ${_data[reversedIndex + 1][0]} m³'),
-                          Text(
-                              'Daily Consumption: ${_data[reversedIndex + 1][2]} m³'),
-                        ],
-                      ),
+                        return Card(
+                          child: ListTile(
+                            title: Text('$formattedDate'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                    'Total Consumption: ${_data[reversedIndex + 1][0]} m³'),
+                                Text(
+                                    'Daily Consumption: ${_data[reversedIndex + 1][2]} m³'),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ),
         ),
@@ -269,109 +333,234 @@ class _HomePageState extends State<HomePage> {
 
   Widget buildDataScreen() {
     return Scaffold(
-      body:
-      Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Card(
-              color: Colors.transparent, // Set to transparent to apply gradient directly
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top:5.0, bottom: 5.0, right:16.0, left:16.0),
+              child: Card(
+                color: Colors.transparent,
+                // Set to transparent to apply gradient directly
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16.0),
-                  gradient: LinearGradient(
-                    colors: [Colors.green, Colors.blue], // Adjust colors as needed
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Water Consumption',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black, // Adjust text color as needed
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16.0),
+                    gradient: LinearGradient(
+                      colors: [Colors.green, Colors.blue],
+                      // Adjust colors as needed
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Water Consumption',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black, // Adjust text color as needed
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 20),
-                      Container(
-                        height: 300, // Set the desired height for your chart
-                        child: LineChart(
-                          LineChartData(
-                            // Customize your line chart data here
-                            gridData: FlGridData(show: true,
-                                drawHorizontalLine: true,
-                                drawVerticalLine: true),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 30,
-                                  interval: 1,
-                                  getTitlesWidget: bottomTitleWidgets,
-
-                                ),
-                              ),
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  interval: 10,
-                                  //getTitlesWidget: leftTitleWidgets,
-                                  reservedSize: 42,
-                                ),
-                              ),
-
-                            ),
-                            backgroundColor: Colors.transparent,
-                            //minX: 0,
-                            // maxX: 6, // Adjust based on your data
-                            minY: -5,
-                            maxY: 100, // Adjust based on your data
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: List.generate(
-                                  _timestamps.length,
-                                      (index) => FlSpot(index.toDouble(), _literReadings[index]),
-                                ),
-                                isCurved: true,
-                                color: Colors.black,
-                                dotData: FlDotData(show: false),
-                                belowBarData: BarAreaData(
+                        SizedBox(height: 20),
+                        Container(
+                          height: 300, // Set the desired height for your chart
+                          child: LineChart(
+                            LineChartData(
+                              // Customize your line chart data here
+                              gridData: FlGridData(
                                   show: true,
-                                  gradient: LinearGradient(
-                                    colors: [Colors.deepOrange.withOpacity(0.7), Colors.purple],
-                                    stops: [0.0, 0.5],
+                                  drawHorizontalLine: true,
+                                  drawVerticalLine: true),
+                              titlesData: FlTitlesData(
+                                show: true,
+                                rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
+                                topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 50,
+                                    interval: 1,
+                                    getTitlesWidget: bottomTitleWidgets,
+                                  ),
+                                ),
+                                leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    interval: 1,
+                                    reservedSize: 30,
                                   ),
                                 ),
                               ),
-                            ],
+                              backgroundColor: Colors.transparent,
+                              //minX: 0,
+                              // maxX: 6, // Adjust based on your data
+                              minY: 0,
+                              maxY: 10,
+                              // Adjust based on your data
+                              lineBarsData: [
+                                LineChartBarData(
+                                  spots: List.generate(
+                                    _timestamps.length,
+                                        (index) => FlSpot(
+                                        index.toDouble(), _literReadings[index]),
+                                  ),
+                                  isCurved: true,
+                                  color: Colors.black,
+                                  dotData: FlDotData(show: false),
+                                  belowBarData: BarAreaData(
+                                    show: true,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.deepOrange.withOpacity(0.7),
+                                        Colors.purple
+                                      ],
+                                      stops: [0.0, 0.5],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+            Padding(
+              padding: EdgeInsets.only(left: 20),
+              child: Text(
+                "Consumption Predictions",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 25,
+                ),
+              ),
+            ),
+            Card(
+              margin: EdgeInsets.only(top:5.0, bottom: 5.0, right:16.0, left:16.0), // Set edge insets
+              elevation: 5.0, // Add elevation (shadow)
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0), // Rounded corners
+              ),
+              child: Container(
+                padding: EdgeInsets.all(10.0), // Padding inside the container
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomLeft,
+                    end: Alignment.topRight,
+                    colors: [Colors.blue, Colors.green], // Gradient colors
+                  ),
+                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Next Day Consumption Prediction',
+                          style: TextStyle(fontSize: 15.0, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+
+                    Text(
+                      'Cubic Meters: m3',
+                      style: TextStyle(fontSize: 16.0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Card(
+              margin: EdgeInsets.only(top:5.0, bottom: 5.0, right:16.0, left:16.0), // Set edge insets
+              elevation: 5.0, // Add elevation (shadow)
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0), // Rounded corners
+              ),
+              child: Container(
+                padding: EdgeInsets.all(10.0), // Padding inside the container
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomLeft,
+                    end: Alignment.topRight,
+                    colors: [Colors.blue, Colors.green], // Gradient colors
+                  ),
+                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Next Week Consumption Prediction',
+                          style: TextStyle(fontSize: 15.0, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+
+                    Text(
+                      'Cubic Meters: m3',
+                      style: TextStyle(fontSize: 16.0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Card(
+              margin: EdgeInsets.only(top:5.0, bottom: 5.0, right:16.0, left:16.0), // Set edge insets
+              elevation: 5.0, // Add elevation (shadow)
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0), // Rounded corners
+              ),
+              child: Container(
+                padding: EdgeInsets.all(10.0), // Padding inside the container
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomLeft,
+                    end: Alignment.topRight,
+                    colors: [Colors.blue, Colors.green], // Gradient colors
+                  ),
+                  borderRadius: BorderRadius.circular(10.0), // Rounded corners
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Next Month Consumption Prediction',
+                          style: TextStyle(fontSize: 15.0, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+
+                    Text(
+                      'Cubic Meters: m3',
+                      style: TextStyle(fontSize: 16.0),
+                    ),
+                  ],
+                ),
+              ),
+            )
+
+          ],
+        ),
       )
-      ,
     );
   }
 
@@ -383,6 +572,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: PageView(
         controller: _pageController,
+        physics: NeverScrollableScrollPhysics(),
         onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
@@ -397,26 +587,25 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       bottomNavigationBar: FancyBottomNavigation(
-
-        circleColor: Colors.blue, // Set color for the unselected item circle
-        activeIconColor: Colors.white, // Set color for the selected item icon
-        inactiveIconColor: Colors.blue, // Set color for the unselected item icon
-        textColor: Colors.blue, // Set color for the text
-        barBackgroundColor: Colors.white, // Set color for the bottom bar background
+        circleColor: Colors.blue,
+        // Set color for the unselected item circle
+        activeIconColor: Colors.white,
+        // Set color for the selected item icon
+        inactiveIconColor: Colors.blue,
+        // Set color for the unselected item icon
+        textColor: Colors.blue,
+        // Set color for the text
+        barBackgroundColor: Colors.white,
+        // Set color for the bottom bar background
         tabs: [
           TabData(
             iconData: Icons.home,
             title: "Homepage",
-
-
           ),
           TabData(
             iconData: Icons.data_usage,
             title: "DataScreen",
-
-
           ),
-
         ],
 
         initialSelection: _currentIndex,
