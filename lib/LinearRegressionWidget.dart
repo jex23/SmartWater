@@ -17,13 +17,16 @@ class LinearRegressionWidget extends StatelessWidget {
       appBar: AppBar(
         title: Text('Linear Regression'),
       ),
-      body: CustomPaint(
-        size: Size.infinite,
-        painter: RegressionPainter(
-          xValues: xValues,
-          yValues: yValues,
-          slope: slope,
-          intercept: intercept,
+      body: Container(
+        height: MediaQuery.of(context).size.height, // Set height to full screen height
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: RegressionPainter(
+            xValues: xValues,
+            yValues: yValues,
+            slope: slope,
+            intercept: intercept,
+          ),
         ),
       ),
     );

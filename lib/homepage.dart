@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:fancy_bottom_navigation_2/fancy_bottom_navigation.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math';
 
 class HomePage extends StatefulWidget {
   @override
@@ -27,6 +28,7 @@ class _HomePageState extends State<HomePage> {
   List<List<String>> _data = [];
   List<String> _timestamps = [];
   List<double> _literReadings = [];
+
 
   late PageController _pageController;
   int _currentIndex = 0;
@@ -302,7 +304,7 @@ class _HomePageState extends State<HomePage> {
               child: _data.isEmpty
                   ? Center(child: CircularProgressIndicator())
                   : ListView.builder(
-                      itemCount: _data.length - 2,
+                      itemCount: _data.length - 1,
                       itemBuilder: (context, index) {
                         final reversedIndex = _data.length - index - 2;
                         final rawDate = _data[reversedIndex + 1][1];
@@ -332,6 +334,85 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget buildDataScreen() {
+    double predictNextDayConsumption(List<double> yValues, int n) {
+      double sumX = 0;
+      double sumY = 0;
+      for (int i = 0; i < n; i++) {
+        sumX += (i + 1);
+        sumY += yValues[i];
+      }
+      double meanX = sumX / n;
+      double meanY = sumY / n;
+
+      double numerator = 0;
+      double denominator = 0;
+      for (int i = 0; i < n; i++) {
+        numerator += (i + 1 - meanX) * (yValues[i] - meanY);
+        denominator += pow((i + 1 - meanX), 2);
+      }
+      double slope = numerator / denominator;
+      double intercept = meanY - slope * meanX;
+
+      return slope * (n + 1) + intercept;
+    }
+
+    double predictNextWeekConsumption(List<double> yValues, int n) {
+      // Calculate the slope and intercept for linear regression
+      double slope;
+      double intercept;
+      double sumX = 0;
+      double sumY = 0;
+      for (int i = 0; i < n; i++) {
+        sumX += (i + 1);
+        sumY += yValues[i];
+      }
+      double meanX = sumX / n;
+      double meanY = sumY / n;
+
+      double numerator = 0;
+      double denominator = 0;
+      for (int i = 0; i < n; i++) {
+        numerator += (i + 1 - meanX) * (yValues[i] - meanY);
+        denominator += pow((i + 1 - meanX), 2);
+      }
+      slope = numerator / denominator;
+      intercept = meanY - slope * meanX;
+
+      // Predict the consumption for the next week
+      double nextWeek = slope * (n + 7) + intercept;
+      return nextWeek;
+    }
+
+
+    double predictNextMonthConsumption(List<double> yValues, int n) {
+      // Calculate the slope and intercept for linear regression
+      double slope;
+      double intercept;
+      double sumX = 0;
+      double sumY = 0;
+      for (int i = 0; i < n; i++) {
+        sumX += (i + 1);
+        sumY += yValues[i];
+      }
+      double meanX = sumX / n;
+      double meanY = sumY / n;
+
+      double numerator = 0;
+      double denominator = 0;
+      for (int i = 0; i < n; i++) {
+        numerator += (i + 1 - meanX) * (yValues[i] - meanY);
+        denominator += pow((i + 1 - meanX), 2);
+      }
+      slope = numerator / denominator;
+      intercept = meanY - slope * meanX;
+
+      // Predict the consumption for the next month
+      double nextMonth = slope * (n + 30) + intercept;
+      return nextMonth;
+    }
+
+
+
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -478,7 +559,7 @@ class _HomePageState extends State<HomePage> {
                     ),
 
                     Text(
-                      'Cubic Meters: m3',
+                      'Cubic Meters: ${predictNextDayConsumption(_literReadings, _timestamps.length).toStringAsFixed(5)} m3',
                       style: TextStyle(fontSize: 16.0),
                     ),
                   ],
@@ -514,7 +595,7 @@ class _HomePageState extends State<HomePage> {
                     ),
 
                     Text(
-                      'Cubic Meters: m3',
+                      'Cubic Meters: ${predictNextWeekConsumption(_literReadings, _timestamps.length).toStringAsFixed(5)} m3',
                       style: TextStyle(fontSize: 16.0),
                     ),
                   ],
@@ -550,13 +631,16 @@ class _HomePageState extends State<HomePage> {
                     ),
 
                     Text(
-                      'Cubic Meters: m3',
+                      'Cubic Meters: ${predictNextMonthConsumption(_literReadings, _timestamps.length).toStringAsFixed(5)} m3',
                       style: TextStyle(fontSize: 16.0),
                     ),
                   ],
                 ),
               ),
-            )
+            ),
+
+
+
 
           ],
         ),
