@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> {
 
   late PageController _pageController;
   int _currentIndex = 0;
+  bool _darkMode = false;
 
   Future<void> _fetchData() async {
     final response = await http.get(Uri.parse(apiUrl));
@@ -384,6 +385,7 @@ class _HomePageState extends State<HomePage> {
     }
 
 
+
     double predictNextMonthConsumption(List<double> yValues, int n) {
       // Calculate the slope and intercept for linear regression
       double slope;
@@ -410,6 +412,7 @@ class _HomePageState extends State<HomePage> {
       double nextMonth = slope * (n + 30) + intercept;
       return nextMonth;
     }
+
 
 
 
@@ -478,8 +481,8 @@ class _HomePageState extends State<HomePage> {
                                 leftTitles: AxisTitles(
                                   sideTitles: SideTitles(
                                     showTitles: true,
-                                    interval: 1,
-                                    reservedSize: 30,
+                                    interval: 0.2,
+                                    reservedSize: 40,
                                   ),
                                 ),
                               ),
@@ -487,7 +490,7 @@ class _HomePageState extends State<HomePage> {
                               //minX: 0,
                               // maxX: 6, // Adjust based on your data
                               minY: 0,
-                              maxY: 10,
+                              maxY: 0.5,
                               // Adjust based on your data
                               lineBarsData: [
                                 LineChartBarData(
@@ -653,6 +656,50 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Water Meter IOT'),
+        // Add hamburger menu button
+        leading: Builder(
+          builder: (BuildContext context) {
+            return IconButton(
+              icon: Icon(Icons.menu),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            );
+          },
+        ),
+      ),
+      // Add Drawer for hamburger menu
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            DrawerHeader(
+              child: Text('Menu'),
+              decoration: BoxDecoration(
+                color: Colors.blue,
+              ),
+            ),
+            ListTile(
+              title: Text('Sign Out'),
+              onTap: () async {
+                await _auth.signOut();
+                Navigator.pushReplacementNamed(context, '/signin');
+              },
+            ),
+            ListTile(
+              title: Text('Dark Mode'),
+              trailing: Switch(
+                value: _darkMode,
+                onChanged: (value) {
+                  setState(() {
+                    _darkMode = value;
+                    // Apply dark mode changes here
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
       ),
       body: PageView(
         controller: _pageController,

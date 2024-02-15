@@ -11,6 +11,8 @@ class _SignInPageState extends State<SignInPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  String _errorMessage = '';
+  bool _showPassword = false;
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +31,18 @@ class _SignInPageState extends State<SignInPage> {
             ),
             TextField(
               controller: _passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () {
+                    setState(() {
+                      _showPassword = !_showPassword;
+                    });
+                  },
+                ),
+              ),
+              obscureText: !_showPassword,
             ),
             SizedBox(height: 20),
             ElevatedButton(
@@ -47,13 +59,18 @@ class _SignInPageState extends State<SignInPage> {
 
                   Navigator.pushReplacementNamed(context, '/home');
                 } catch (e) {
-                  print('Error signing in: $e');
+                  setState(() {
+                    _errorMessage = 'Incorrect Password or Username';
+                  });
                 }
               },
               child: Text('Sign In'),
             ),
             SizedBox(height: 10),
-
+            Text(
+              _errorMessage,
+              style: TextStyle(color: Colors.red),
+            ),
           ],
         ),
       ),
